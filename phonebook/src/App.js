@@ -1,65 +1,9 @@
 import { useState, useEffect } from 'react'
 import personService from './services/persons'
-
-const ListItem = ({person, deletePerson}) => {
-  return(
-    <div>
-      {person.name} {person.number} 
-      <button onClick = {()=>deletePerson(person.id)}>
-          delete
-      </button>
-    </div>
-  )
-}
-
-const Filter = ({filter, handle}) => {
-  return (
-    <form>
-      <div>
-        filter shown with <input
-          value = {filter}
-          onChange={handle}
-        />
-      </div>
-    </form> 
-  )
-}
-
-const PersonForm = ({addPerson, newName, handleNameChange, newNum, handleNumChange}) => {
-  return(
-    <form onSubmit={addPerson}>
-      <div>
-        name: <input
-          value={newName}
-          onChange={handleNameChange}
-        />
-      </div>
-      <div>
-         number: <input
-          value = {newNum}
-          onChange={handleNumChange}
-        />
-      </div>
-      <button type="submit">add</button>
-    </form> 
-  )
-}
-
-const Persons = ({persons, filter, deletePerson}) => {
-  return(
-    persons
-      .filter(person => 
-        person.name.toLowerCase().includes(filter.toLowerCase())
-      )
-      .map(person => 
-        <ListItem 
-          key={person.id} 
-          person = {person}
-          deletePerson={deletePerson}
-        />
-      )
-  )
-}
+import Filter from './components/Filter'
+import ListOfPersons from './components/ListOfPersons'
+import Notification from './components/Notification'
+import PersonForm from './components/PersonForm'
 
 const App = () => {
   //set states
@@ -67,6 +11,7 @@ const App = () => {
   const [newName, setNewName] = useState('')
   const [newNum, setNewNum] = useState('')
   const [filter, setFilter] = useState('')
+  const [message, setMessage] = useState('Hello there!')
 
   //set display to all objects on server
   useEffect(() => { 
@@ -77,36 +22,43 @@ const App = () => {
       })
     }, [])
 
-    //add person
+  //add person
   const addPerson = (event) => {
     const foundPerson = persons.filter(
       (person) => person.name.toLowerCase() === newName.toLowerCase()
     )
-
-    event.preventDefault()
-    console.log('button clicked', event.target)
-
     const personObject = {
       name: newName,
       number: newNum,
     }
+    event.preventDefault()
+
+    //input name already exists
+    const selectedPersonName = newName;
 
     if (foundPerson.length !== 0) {
-      if(window.confirm(`${newName} is already added to phonebook, replace the old number with the new one?`)) {
+      if(window.confirm(`${selectedPersonName} is already added to phonebook, replace the old number with the new one?`)) {
         personService
           .update(foundPerson[0].id, personObject)
           .then(response => {
             setPersons(persons.map(person => person.id !== foundPerson[0].id ? person : response.data))
+            setMessage(`Updated the phone number of ${selectedPersonName}`)
+          })
+          .catch(error => {
+            setMessage(`Error: ${selectedPersonName} was already deleted`)
+            setPersons(persons.filter(person => person.id !== foundPerson[0].id))
           })
       }
       else
         console.log(`cancel was pressed`)
     }
+    //new input
     else
       personService
         .create(personObject)
         .then(response => {
           setPersons(persons.concat(response.data))
+          setMessage(`Created a list item for ${selectedPersonName}`)
         })
       setNewName('')
       setNewNum('')  
@@ -120,7 +72,11 @@ const App = () => {
     if (window.confirm(`Delete ${personName} ?`)) {
       personService
         .erase(personId)
-        console.log(`person with id ${personId} has been deleted`)
+        .catch(error => {
+          setMessage(`Error: Person with id ${personId} was already deleted`)
+          setPersons(persons.filter(person => person.id !== personId))
+
+        })
       setPersons(persons.filter(person => person.id !== personId))
     }
   }
@@ -141,6 +97,7 @@ const App = () => {
   return (
     <div>
       <h2>Phonebook</h2>
+      <Notification message={message}/>
       <Filter 
         filter = {filter} 
         handle={handleFilterChange}
@@ -156,7 +113,7 @@ const App = () => {
       />
 
       <h3>Numbers</h3>
-      <Persons 
+      <ListOfPersons 
         persons = {persons} 
         filter = {filter}
         deletePerson = {deletePerson}
